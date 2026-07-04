@@ -1,0 +1,827 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Watch Party</title>
+
+<!--
+  Fonts: 'Space Grotesk' for the wordmark/headers (a little mechanical,
+  reads well against a dark UI), 'Inter' for everything else (neutral,
+  legible at small sizes for a dense dashboard).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<style>
+/* ==========================================================================
+   DESIGN TOKENS
+   Palette  : #0A0C10 (app bg) / #12151C (panels) / #1B1F2A (raised surface)
+              #35D6C5 (accent — "live/sync" teal, the signature color used
+              for the connection pulse, active states and the logo mark)
+              #7C8CFF (secondary accent — host/party indicators)
+              #E9ECF5 (primary text) / #8A90A6 (muted text)
+              #FF6B6B (errors) / #FFC85C (warnings)
+   Type     : Space Grotesk (display/wordmark), Inter (UI/body)
+   Signature: a soft teal "sync pulse" ring around the player that only
+              breathes while genuinely connected to a live watch party —
+              the one animated element in the whole UI, so it actually
+              means something when it's on.
+   ========================================================================== */
+:root{
+  --bg:#0A0C10;
+  --panel:#12151C;
+  --panel-raised:#1B1F2A;
+  --border:rgba(255,255,255,0.08);
+  --text:#E9ECF5;
+  --muted:#8A90A6;
+  --accent:#35D6C5;
+  --accent-dim:rgba(53,214,197,0.15);
+  --party:#7C8CFF;
+  --danger:#FF6B6B;
+  --warning:#FFC85C;
+  --radius:14px;
+  --radius-sm:9px;
+  --sidebar-w:200px;
+  --chat-w:200px;
+  --header-h:56px;
+}
+
+*,*::before,*::after{ box-sizing:border-box; }
+html,body{ height:100%; }
+body{
+  margin:0;
+  background:
+    radial-gradient(1200px 600px at 20% -10%, rgba(124,140,255,0.08), transparent 60%),
+    radial-gradient(1000px 500px at 100% 0%, rgba(53,214,197,0.06), transparent 55%),
+    var(--bg);
+  color:var(--text);
+  font-family:'Inter', system-ui, -apple-system, sans-serif;
+  -webkit-font-smoothing:antialiased;
+  overflow:hidden;
+}
+h1,h2,h3,.brand{ font-family:'Space Grotesk', 'Inter', sans-serif; }
+button{ font-family:inherit; }
+::selection{ background:var(--accent-dim); }
+::-webkit-scrollbar{ width:8px; height:8px; }
+::-webkit-scrollbar-thumb{ background:rgba(255,255,255,0.12); border-radius:8px; }
+::-webkit-scrollbar-track{ background:transparent; }
+:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+a{ color:inherit; }
+
+.hidden{ display:none !important; }
+button{ cursor:pointer; }
+
+/* ---------------------------------------------------------------------
+   Glassmorphism helper — used by the chat panel, floating screenshare
+   preview, and modals.
+   --------------------------------------------------------------------- */
+.glass{
+  background:rgba(23,27,36,0.62);
+  backdrop-filter:blur(18px) saturate(140%);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  border:1px solid var(--border);
+}
+
+/* ---------------------------------------------------------------------
+   LOGIN / REGISTER SCREEN
+   --------------------------------------------------------------------- */
+#login-screen{
+  height:100%;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding:24px;
+}
+.login-card{
+  width:100%;
+  max-width:380px;
+  padding:32px 28px 28px;
+  border-radius:var(--radius);
+  animation:rise .5s ease both;
+}
+@keyframes rise{ from{ opacity:0; transform:translateY(10px);} to{opacity:1; transform:translateY(0);} }
+.login-brand{
+  display:flex; align-items:center; gap:10px; margin-bottom:26px;
+}
+.login-brand .dot{
+  width:12px;height:12px;border-radius:50%;
+  background:var(--accent);
+  box-shadow:0 0 0 4px var(--accent-dim);
+}
+.login-brand span{ font-size:20px; font-weight:700; letter-spacing:.2px; }
+
+.auth-tabs{
+  display:flex; background:var(--panel-raised); border-radius:var(--radius-sm);
+  padding:4px; margin-bottom:20px; border:1px solid var(--border);
+}
+.auth-tabs button{
+  flex:1; padding:9px 0; border:none; background:transparent; color:var(--muted);
+  border-radius:7px; font-weight:600; font-size:13.5px; transition:all .18s ease;
+}
+.auth-tabs button.active{ background:var(--accent); color:#04211d; }
+
+.field{ margin-bottom:14px; }
+.field label{ display:block; font-size:12.5px; color:var(--muted); margin-bottom:6px; font-weight:500; }
+.field input[type="text"], .field input[type="password"]{
+  width:100%; padding:11px 12px; border-radius:var(--radius-sm);
+  border:1px solid var(--border); background:var(--panel-raised); color:var(--text);
+  font-size:14px; transition:border-color .15s ease;
+}
+.field input:focus{ border-color:var(--accent); }
+.remember-row{ display:flex; align-items:center; gap:8px; margin-bottom:18px; }
+.remember-row input{ accent-color:var(--accent); width:15px; height:15px; }
+.remember-row label{ font-size:13px; color:var(--muted); }
+
+.btn-primary{
+  width:100%; padding:12px; border:none; border-radius:var(--radius-sm);
+  background:var(--accent); color:#04211d; font-weight:700; font-size:14.5px;
+  transition:transform .1s ease, filter .15s ease;
+}
+.btn-primary:hover{ filter:brightness(1.07); }
+.btn-primary:active{ transform:scale(.98); }
+.btn-primary:disabled{ opacity:.55; cursor:default; }
+
+.auth-error{
+  background:rgba(255,107,107,0.12); border:1px solid rgba(255,107,107,0.35);
+  color:#ffb3b3; font-size:12.5px; padding:9px 11px; border-radius:var(--radius-sm);
+  margin-bottom:14px; display:none;
+}
+.auth-error.show{ display:block; }
+.auth-switch-hint{ text-align:center; font-size:12.5px; color:var(--muted); margin-top:16px; }
+#recover-link{ color:var(--accent); background:none; border:none; font-size:12.5px; text-decoration:underline; padding:0; }
+
+#session-splash{
+  height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px;
+  color:var(--muted); font-size:13.5px;
+}
+.spinner{
+  width:28px; height:28px; border-radius:50%;
+  border:3px solid var(--border); border-top-color:var(--accent);
+  animation:spin .8s linear infinite;
+}
+@keyframes spin{ to{ transform:rotate(360deg); } }
+
+/* ---------------------------------------------------------------------
+   DASHBOARD SHELL
+   --------------------------------------------------------------------- */
+#dashboard{ height:100%; display:flex; flex-direction:column; }
+
+.app-header{
+  height:var(--header-h); flex:0 0 auto;
+  display:flex; align-items:center; justify-content:space-between;
+  padding:0 18px; border-bottom:1px solid var(--border);
+  background:rgba(10,12,16,0.7);
+  position:relative; z-index:40;
+}
+.brand{ display:flex; align-items:center; gap:9px; font-weight:700; font-size:16.5px; }
+.brand .dot{ width:9px;height:9px;border-radius:50%; background:var(--accent); }
+.header-right{ display:flex; align-items:center; gap:10px; }
+
+.icon-btn{
+  width:34px; height:34px; display:flex; align-items:center; justify-content:center;
+  border-radius:9px; border:1px solid transparent; background:transparent; color:var(--muted);
+  transition:background .15s ease, color .15s ease;
+}
+.icon-btn:hover{ background:var(--panel-raised); color:var(--text); }
+
+.profile-btn{
+  display:flex; align-items:center; gap:8px; padding:5px 10px 5px 6px; border-radius:20px;
+  border:1px solid var(--border); background:var(--panel-raised); color:var(--text); font-size:13px; font-weight:600;
+}
+.avatar{
+  width:26px;height:26px;border-radius:50%; background:linear-gradient(135deg,var(--accent),var(--party));
+  display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:700; color:#06110f; flex:0 0 auto;
+}
+.avatar.sm{ width:20px; height:20px; font-size:9.5px; }
+.avatar.lg{ width:44px; height:44px; font-size:16px; }
+
+.dropdown{ position:relative; }
+.dropdown-menu{
+  position:absolute; top:calc(100% + 8px); right:0; min-width:190px;
+  border-radius:var(--radius-sm); padding:6px; z-index:60;
+  box-shadow:0 12px 30px rgba(0,0,0,0.45);
+}
+.dropdown-menu button{
+  width:100%; text-align:left; padding:9px 10px; border:none; background:none; color:var(--text);
+  border-radius:7px; font-size:13.5px; display:flex; align-items:center; gap:9px;
+}
+.dropdown-menu button:hover{ background:var(--panel-raised); }
+.dropdown-menu button.danger{ color:#ffb3b3; }
+.dropdown-menu hr{ border:none; border-top:1px solid var(--border); margin:5px 2px; }
+
+/* ---- Main responsive grid ------------------------------------------- */
+.dashboard-grid{
+  flex:1 1 auto; min-height:0;
+  display:grid;
+  grid-template-columns: var(--sidebar-w) 1fr var(--chat-w);
+  grid-template-areas: "sidebar center chat";
+}
+
+.sidebar{
+  grid-area:sidebar; border-right:1px solid var(--border);
+  display:flex; flex-direction:column; min-height:0; background:rgba(255,255,255,0.015);
+}
+.sidebar-section{ padding:14px 12px 6px; }
+.sidebar-title{
+  font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--muted);
+  font-weight:700; margin-bottom:9px; display:flex; align-items:center; justify-content:space-between;
+}
+.search-box{
+  display:flex; align-items:center; gap:6px; background:var(--panel-raised); border:1px solid var(--border);
+  border-radius:var(--radius-sm); padding:7px 9px; margin-bottom:8px;
+}
+.search-box input{ background:none; border:none; color:var(--text); font-size:12.5px; width:100%; }
+.search-box input:focus{ outline:none; }
+.search-box svg{ flex:0 0 auto; opacity:.55; }
+
+.add-friend-btn{
+  width:100%; padding:8px; border-radius:var(--radius-sm); border:1px dashed var(--border);
+  background:transparent; color:var(--muted); font-size:12.5px; font-weight:600; margin-bottom:10px;
+  transition:border-color .15s ease, color .15s ease;
+}
+.add-friend-btn:hover{ border-color:var(--accent); color:var(--accent); }
+
+.friend-list, .dm-list{ list-style:none; margin:0; padding:0 8px 10px; overflow-y:auto; }
+.friend-row, .dm-row{
+  display:flex; align-items:center; gap:9px; padding:8px 6px; border-radius:var(--radius-sm);
+  cursor:pointer; transition:background .12s ease; position:relative;
+}
+.friend-row:hover, .dm-row:hover{ background:var(--panel-raised); }
+.friend-row.active, .dm-row.active{ background:var(--accent-dim); }
+.presence-dot{
+  width:9px;height:9px;border-radius:50%; background:#4a5064; border:2px solid var(--bg); position:absolute; left:24px; top:24px;
+}
+.presence-dot.online{ background:#43e6a0; }
+.friend-name{ font-size:13px; font-weight:600; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.friend-sub{ font-size:11px; color:var(--muted); }
+.unread-badge{
+  min-width:18px; height:18px; padding:0 5px; border-radius:9px; background:var(--party);
+  color:#fff; font-size:10.5px; font-weight:700; display:flex; align-items:center; justify-content:center;
+}
+.empty-hint{ color:var(--muted); font-size:12px; padding:10px 6px; line-height:1.5; }
+
+/* Tablet: sidebar collapses to an icon rail */
+.sidebar.icon-rail .friend-name, .sidebar.icon-rail .friend-sub,
+.sidebar.icon-rail .sidebar-title span, .sidebar.icon-rail .search-box,
+.sidebar.icon-rail .add-friend-btn span, .sidebar.icon-rail .dm-row .friend-name{
+  display:none;
+}
+.sidebar.icon-rail{ width:64px; }
+.sidebar.icon-rail .friend-row, .sidebar.icon-rail .dm-row{ justify-content:center; }
+.sidebar.icon-rail .add-friend-btn{ display:flex; align-items:center; justify-content:center; }
+
+/* ---- Center: watch party area ---------------------------------------- */
+.watch-area{ grid-area:center; display:flex; flex-direction:column; min-height:0; min-width:0; position:relative; }
+.watch-header{
+  display:flex; align-items:center; justify-content:space-between; padding:12px 18px;
+  border-bottom:1px solid var(--border); flex:0 0 auto;
+}
+.watch-title{ display:flex; align-items:center; gap:9px; font-size:14px; font-weight:600; }
+.party-pulse{ width:8px;height:8px;border-radius:50%; background:#4a5064; }
+.party-pulse.live{ background:var(--accent); box-shadow:0 0 0 0 var(--accent-dim); animation:pulse 2s ease-out infinite; }
+@keyframes pulse{
+  0%{ box-shadow:0 0 0 0 rgba(53,214,197,0.45); }
+  70%{ box-shadow:0 0 0 10px rgba(53,214,197,0); }
+  100%{ box-shadow:0 0 0 0 rgba(53,214,197,0); }
+}
+.btn-ghost{
+  padding:7px 13px; border-radius:var(--radius-sm); border:1px solid var(--border); background:var(--panel-raised);
+  color:var(--text); font-size:12.5px; font-weight:600; display:inline-flex; align-items:center; gap:6px;
+}
+.btn-ghost:hover{ border-color:var(--accent); }
+.btn-ghost.danger:hover{ border-color:var(--danger); color:#ffb3b3; }
+.btn-ghost.accent{ background:var(--accent); color:#04211d; border-color:transparent; }
+
+.player-stage{
+  flex:1 1 auto; min-height:0; display:flex; align-items:center; justify-content:center; padding:22px; position:relative;
+}
+.player-frame{
+  width:600px; max-width:100%; height:100%; max-height:100%; aspect-ratio:16/9; position:relative;
+  border-radius:var(--radius); overflow:hidden; border:1px solid var(--border);
+  box-shadow:0 20px 60px rgba(0,0,0,0.5);
+  transition:box-shadow .4s ease;
+}
+.player-frame.synced{ box-shadow:0 0 0 1px rgba(53,214,197,0.5), 0 0 40px rgba(53,214,197,0.18), 0 20px 60px rgba(0,0,0,0.5); }
+#player-container{ width:100%; height:100%; }
+#player-container .tvp{ width:100%; height:100%; }
+.player-empty{
+  position:absolute; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:12px; color:var(--muted); text-align:center; padding:20px; background:var(--panel);
+}
+.player-empty .btn-primary{ width:auto; padding:10px 18px; }
+
+.video-meta{
+  flex:0 0 auto; padding:10px 18px 16px; display:flex; align-items:center; justify-content:space-between;
+  border-top:1px solid var(--border);
+}
+.video-meta-left{ min-width:0; }
+.video-title{ font-size:13.5px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.video-sub{ font-size:11.5px; color:var(--muted); margin-top:2px; }
+
+/* ---- Right: party chat / DM panel ------------------------------------ */
+.chat-panel{
+  grid-area:chat; display:flex; flex-direction:column; min-height:0; border-left:1px solid var(--border);
+}
+.chat-tabs{ display:flex; border-bottom:1px solid var(--border); flex:0 0 auto; }
+.chat-tabs button{
+  flex:1; padding:11px 0; background:none; border:none; color:var(--muted); font-size:12px; font-weight:700;
+  border-bottom:2px solid transparent; letter-spacing:.02em;
+}
+.chat-tabs button.active{ color:var(--text); border-bottom-color:var(--accent); }
+.chat-pin-toggle{ flex:0 0 auto; width:38px; display:flex; align-items:center; justify-content:center; color:var(--muted); }
+
+.chat-messages{ flex:1 1 auto; overflow-y:auto; padding:12px; display:flex; flex-direction:column; gap:10px; }
+.chat-empty{ margin:auto; color:var(--muted); font-size:12.5px; text-align:center; padding:20px; line-height:1.6; }
+
+.msg{ max-width:92%; display:flex; flex-direction:column; gap:3px; position:relative; }
+.msg.mine{ align-self:flex-end; align-items:flex-end; }
+.msg-meta{ font-size:10.5px; color:var(--muted); display:flex; gap:6px; }
+.msg-bubble{
+  background:var(--panel-raised); border:1px solid var(--border); padding:8px 11px; border-radius:13px;
+  font-size:13px; line-height:1.4; word-break:break-word;
+}
+.msg.mine .msg-bubble{ background:var(--accent-dim); border-color:rgba(53,214,197,0.35); }
+.msg-reply-quote{
+  font-size:11px; color:var(--muted); border-left:2px solid var(--accent); padding:3px 8px; margin-bottom:5px; opacity:.85;
+}
+.msg-gif img{ max-width:100%; border-radius:10px; display:block; }
+.msg-reactions{ display:flex; gap:3px; flex-wrap:wrap; }
+.msg-reactions span{ background:var(--panel-raised); border:1px solid var(--border); border-radius:20px; padding:1px 7px; font-size:11.5px; }
+.msg-hover-actions{
+  position:absolute; top:-14px; right:4px; display:none; gap:2px; background:var(--panel-raised);
+  border:1px solid var(--border); border-radius:20px; padding:3px; box-shadow:0 4px 12px rgba(0,0,0,.4);
+}
+.msg.mine .msg-hover-actions{ right:auto; left:4px; }
+.msg:hover .msg-hover-actions{ display:flex; }
+.msg-hover-actions button{ background:none; border:none; font-size:13px; padding:2px 4px; border-radius:50%; }
+.msg-hover-actions button:hover{ background:rgba(255,255,255,0.1); }
+
+.reply-preview{
+  margin:0 12px; padding:7px 10px; background:var(--panel-raised); border-left:2px solid var(--accent);
+  border-radius:8px; font-size:11.5px; color:var(--muted); display:flex; justify-content:space-between; align-items:center; gap:8px;
+}
+.reply-preview button{ background:none; border:none; color:var(--muted); font-size:14px; line-height:1; }
+
+.gif-panel, .emoji-panel{
+  position:absolute; bottom:64px; left:12px; right:12px; padding:10px; border-radius:var(--radius-sm);
+  box-shadow:0 12px 30px rgba(0,0,0,.45); z-index:20;
+}
+.gif-panel input{
+  width:100%; padding:8px 10px; border-radius:8px; border:1px solid var(--border); background:var(--panel-raised);
+  color:var(--text); font-size:12.5px; margin-bottom:8px;
+}
+.gif-panel .hint{ font-size:11px; color:var(--muted); line-height:1.5; }
+.emoji-grid{ display:grid; grid-template-columns:repeat(8,1fr); gap:4px; }
+.emoji-grid button{ background:none; border:none; font-size:19px; padding:5px; border-radius:8px; }
+.emoji-grid button:hover{ background:var(--panel-raised); }
+
+.chat-compose{ flex:0 0 auto; border-top:1px solid var(--border); padding:10px 12px; position:relative; }
+.compose-row{ display:flex; align-items:flex-end; gap:6px; }
+.compose-row textarea{
+  flex:1; resize:none; max-height:90px; min-height:36px; padding:9px 11px; border-radius:var(--radius-sm);
+  border:1px solid var(--border); background:var(--panel-raised); color:var(--text); font-size:13px; font-family:inherit;
+}
+.compose-row textarea:focus{ outline:none; border-color:var(--accent); }
+.compose-icon-btn{
+  width:36px; height:36px; flex:0 0 auto; border-radius:var(--radius-sm); border:1px solid var(--border);
+  background:var(--panel-raised); color:var(--muted); font-size:16px; display:flex; align-items:center; justify-content:center;
+}
+.compose-icon-btn.active{ color:var(--accent); border-color:var(--accent); }
+.send-btn{
+  width:36px; height:36px; flex:0 0 auto; border-radius:var(--radius-sm); border:none; background:var(--accent);
+  color:#04211d; display:flex; align-items:center; justify-content:center;
+}
+.send-btn:disabled{ opacity:.4; }
+
+/* ---- Floating screenshare preview -------------------------------------- */
+.ss-preview{
+  position:absolute; width:250px; border-radius:var(--radius-sm); overflow:hidden; z-index:50;
+  box-shadow:0 14px 34px rgba(0,0,0,0.5); user-select:none;
+}
+.ss-preview-head{
+  display:flex; align-items:center; justify-content:space-between; padding:6px 8px; font-size:11px; font-weight:600;
+  cursor:grab; background:rgba(0,0,0,0.35);
+}
+.ss-preview-head .live-tag{ display:flex; align-items:center; gap:5px; color:var(--accent); }
+.ss-preview-head .live-tag::before{ content:''; width:6px; height:6px; border-radius:50%; background:var(--accent); }
+.ss-preview-actions{ display:flex; gap:4px; }
+.ss-preview-actions button{ background:none; border:none; color:var(--muted); font-size:12px; padding:2px 4px; }
+.ss-preview-actions button:hover{ color:var(--text); }
+.ss-preview video{ width:100%; display:block; aspect-ratio:16/10; background:#000; }
+.ss-preview.minimized video{ display:none; }
+.ss-preview.minimized{ width:150px; }
+.ss-preview .stop-share-btn{
+  position:absolute; inset:auto 0 0 0; padding:6px; text-align:center; font-size:11px; font-weight:700;
+  background:rgba(255,107,107,0.9); color:#2b0000; display:none;
+}
+.ss-preview:hover .stop-share-btn{ display:block; }
+
+/* ---- Mobile chat FAB + overlay ----------------------------------------- */
+.chat-fab{
+  position:fixed; right:16px; bottom:16px; width:52px; height:52px; border-radius:50%; border:none;
+  background:var(--accent); color:#04211d; font-size:20px; display:none; align-items:center; justify-content:center;
+  box-shadow:0 10px 26px rgba(53,214,197,0.35); z-index:80;
+}
+.chat-fab .fab-badge{
+  position:absolute; top:-2px; right:-2px; background:var(--party); color:#fff; font-size:10px; font-weight:800;
+  min-width:16px; height:16px; border-radius:8px; display:flex; align-items:center; justify-content:center; padding:0 4px;
+}
+
+/* ---- Toasts -------------------------------------------------------------- */
+#toast-container{
+  position:fixed; top:70px; left:50%; transform:translateX(-50%); z-index:200;
+  display:flex; flex-direction:column; gap:8px; align-items:center; pointer-events:none;
+}
+.toast{
+  pointer-events:auto; padding:10px 16px; border-radius:10px; font-size:12.5px; font-weight:600;
+  box-shadow:0 10px 26px rgba(0,0,0,0.4); animation:toast-in .25s ease both; max-width:86vw; text-align:center;
+}
+@keyframes toast-in{ from{ opacity:0; transform:translateY(-8px); } to{ opacity:1; transform:translateY(0); } }
+.toast.info{ background:var(--panel-raised); border:1px solid var(--border); color:var(--text); }
+.toast.error{ background:#2a1414; border:1px solid rgba(255,107,107,.5); color:#ffb3b3; }
+.toast.warning{ background:#2a2410; border:1px solid rgba(255,200,92,.5); color:#ffdd9c; }
+.toast.success{ background:#0f2a20; border:1px solid rgba(53,214,197,.5); color:#a9f5ec; }
+
+/* ---- Modals -------------------------------------------------------------- */
+.modal-overlay{
+  position:fixed; inset:0; background:rgba(4,5,7,0.6); display:flex; align-items:center; justify-content:center;
+  z-index:150; padding:20px;
+}
+.modal{
+  width:100%; max-width:400px; border-radius:var(--radius); padding:22px; box-shadow:0 24px 60px rgba(0,0,0,.55);
+}
+.modal h3{ margin:0 0 14px; font-size:16px; }
+.modal-tabs{ display:flex; gap:6px; margin-bottom:16px; background:var(--panel-raised); padding:4px; border-radius:9px; }
+.modal-tabs button{ flex:1; padding:8px 0; border:none; background:none; color:var(--muted); border-radius:6px; font-size:12.5px; font-weight:700; }
+.modal-tabs button.active{ background:var(--accent); color:#04211d; }
+.modal-close{ position:absolute; top:16px; right:16px; background:none; border:none; color:var(--muted); font-size:18px; }
+.modal{ position:relative; }
+.field-row{ display:flex; gap:8px; }
+.peer-code-box{
+  background:var(--panel-raised); border:1px solid var(--border); border-radius:9px; padding:12px; text-align:center;
+  font-family:monospace; font-size:13px; word-break:break-all; margin:12px 0;
+}
+.qr-wrap{ display:flex; justify-content:center; margin:12px 0; }
+.qr-wrap img{ border-radius:10px; border:1px solid var(--border); }
+.settings-row{ display:flex; align-items:center; justify-content:space-between; padding:10px 0; border-bottom:1px solid var(--border); font-size:13px; }
+.settings-row:last-child{ border-bottom:none; }
+input[type="range"]{ accent-color:var(--accent); width:120px; }
+.toggle{ position:relative; width:40px; height:22px; }
+.toggle input{ opacity:0; width:0; height:0; }
+.toggle .track{ position:absolute; inset:0; background:var(--panel-raised); border:1px solid var(--border); border-radius:20px; transition:.2s; }
+.toggle .track::after{ content:''; position:absolute; width:16px;height:16px; border-radius:50%; background:var(--muted); top:2px; left:2px; transition:.2s; }
+.toggle input:checked + .track{ background:var(--accent-dim); border-color:var(--accent); }
+.toggle input:checked + .track::after{ transform:translateX(18px); background:var(--accent); }
+
+/* ==========================================================================
+   RESPONSIVE BREAKPOINTS
+   ========================================================================== */
+
+/* Tablet: 600–1199px — sidebar becomes an icon rail, chat becomes an
+   overlay that slides in from the right instead of being pinned. */
+@media (max-width: 1199.98px){
+  .dashboard-grid{ grid-template-columns: 64px 1fr 0; }
+  .sidebar{ width:64px; }
+  .sidebar .friend-name, .sidebar .friend-sub, .sidebar .sidebar-title span,
+  .sidebar .search-box, .sidebar .add-friend-btn span{ display:none; }
+  .sidebar .friend-row, .sidebar .dm-row{ justify-content:center; }
+  .sidebar .add-friend-btn{ display:flex; align-items:center; justify-content:center; }
+
+  .chat-panel{
+    position:fixed; top:var(--header-h); right:0; bottom:0; width:320px; max-width:86vw;
+    transform:translateX(100%); transition:transform .28s ease; z-index:70; border-left:1px solid var(--border);
+  }
+  .chat-panel.open{ transform:translateX(0); }
+  .player-frame{ width:100%; }
+  .ss-preview{ right:16px !important; left:auto !important; bottom:16px !important; top:auto !important; }
+}
+
+/* Desktop-only chat toggle button (hidden by default, shown on tablet) */
+.chat-toggle-btn{ display:none; }
+@media (max-width:1199.98px){ .chat-toggle-btn{ display:flex; } }
+
+/* Mobile: <600px — fullscreen player, chat becomes the floating FAB + overlay */
+@media (max-width: 599.98px){
+  .app-header{ padding:0 10px; }
+  .brand span{ display:none; }
+  .dashboard-grid{ grid-template-columns: 1fr; grid-template-areas:"center"; }
+  .sidebar{ display:none; }
+  .watch-area{ position:relative; }
+  .player-stage{ padding:0; }
+  .player-frame{ width:100%; height:100%; border-radius:0; border:none; aspect-ratio:auto; }
+  .video-meta{ padding:8px 12px 12px; }
+  .watch-header{ padding:8px 12px; }
+  .btn-ghost span.long{ display:none; }
+
+  .chat-panel{ width:100%; max-width:100%; top:0; }
+  .chat-fab{ display:flex; }
+  .ss-preview{ width:150px; left:12px !important; right:auto !important; bottom:84px !important; top:auto !important; }
+  .ss-preview.minimized{ width:110px; }
+
+  .modal{ max-width:100%; }
+}
+
+/* Mobile chat overlay swipe handle */
+.chat-swipe-handle{ display:none; }
+@media (max-width:599.98px){
+  .chat-swipe-handle{
+    display:flex; justify-content:center; padding:8px 0 2px; touch-action:none;
+  }
+  .chat-swipe-handle::after{ content:''; width:36px; height:4px; border-radius:3px; background:rgba(255,255,255,0.25); }
+  .chat-panel.minimized .chat-messages, .chat-panel.minimized .chat-compose, .chat-panel.minimized .chat-tabs{ display:none; }
+  .chat-panel.minimized{ height:auto; bottom:auto; top:auto; position:fixed; right:0; left:0; border-radius:16px 16px 0 0; }
+}
+</style>
+</head>
+<body>
+
+<!-- =========================================================================
+     SESSION-CHECK SPLASH — shown only while we're verifying a token found in
+     localStorage, so returning users don't see a flash of the login form.
+     ========================================================================= -->
+<div id="session-splash" class="hidden">
+  <div class="spinner"></div>
+  <div>Signing you in…</div>
+</div>
+
+<!-- =========================================================================
+     LOGIN / REGISTER SCREEN
+     ========================================================================= -->
+<div id="login-screen">
+  <div class="login-card glass">
+    <div class="login-brand"><span class="dot"></span><span>Watch Party</span></div>
+
+    <div class="auth-tabs">
+      <button type="button" data-mode="login" class="active">Log In</button>
+      <button type="button" data-mode="register">Sign Up</button>
+    </div>
+
+    <div id="auth-error" class="auth-error"></div>
+
+    <form id="login-form" novalidate>
+      <div class="field">
+        <label for="auth-username">Username</label>
+        <input type="text" id="auth-username" autocomplete="username" placeholder="e.g. alice" />
+      </div>
+      <div class="field">
+        <label for="auth-password">Password</label>
+        <input type="password" id="auth-password" autocomplete="current-password" placeholder="••••••••" />
+      </div>
+      <div class="remember-row">
+        <input type="checkbox" id="auth-remember" checked />
+        <label for="auth-remember">Remember me</label>
+      </div>
+      <button type="submit" class="btn-primary" id="auth-submit">Log In</button>
+    </form>
+
+    <div class="auth-switch-hint">
+      <button type="button" id="recover-link">Forgot your password?</button>
+    </div>
+  </div>
+</div>
+
+<!-- =========================================================================
+     DASHBOARD
+     ========================================================================= -->
+<div id="dashboard" class="hidden">
+
+  <!-- HEADER -->
+  <header class="app-header">
+    <div class="brand"><span class="dot"></span><span>Watch Party</span></div>
+    <div class="header-right">
+      <button class="icon-btn chat-toggle-btn" id="chat-toggle-btn" title="Chat">💬</button>
+      <button class="icon-btn" id="settings-btn" title="Settings">⚙️</button>
+      <div class="dropdown">
+        <button class="profile-btn" id="profile-btn">
+          <span class="avatar sm" id="profile-avatar">?</span>
+          <span id="profile-username">—</span>
+        </button>
+        <div class="dropdown-menu glass hidden" id="profile-menu">
+          <button id="menu-status-online">🟢 Set status: Online</button>
+          <button id="menu-status-away">🌙 Set status: Away</button>
+          <hr />
+          <button id="menu-settings">⚙️ Settings</button>
+          <button class="danger" id="menu-logout">↩ Log Out</button>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <div class="dashboard-grid">
+
+    <!-- LEFT SIDEBAR: FRIENDS + DMS -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-section">
+        <div class="search-box">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+          <input type="text" id="friend-search" placeholder="Search friends" />
+        </div>
+        <button class="add-friend-btn" id="add-friend-btn">＋ <span>Add Friend</span></button>
+      </div>
+
+      <div class="sidebar-section" style="flex:0 0 auto;">
+        <div class="sidebar-title"><span>Friends</span></div>
+      </div>
+      <ul class="friend-list" id="friend-list" style="flex:1 1 40%;"></ul>
+
+      <div class="sidebar-section" style="flex:0 0 auto;">
+        <div class="sidebar-title"><span>Direct Messages</span></div>
+      </div>
+      <ul class="dm-list" id="dm-list" style="flex:1 1 60%;"></ul>
+    </aside>
+
+    <!-- CENTER: WATCH PARTY -->
+    <main class="watch-area" id="watch-area">
+      <div class="watch-header">
+        <div class="watch-title">
+          <span class="party-pulse" id="party-pulse"></span>
+          <span id="watch-title-text">No one watching yet</span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-ghost" id="share-screen-btn">🖥️ <span class="long">Share Screen</span></button>
+          <button class="btn-ghost accent" id="invite-friend-btn">＋ <span class="long">Invite Friend</span></button>
+          <button class="btn-ghost danger hidden" id="end-party-btn">✕ <span class="long">End Watch Party</span></button>
+        </div>
+      </div>
+
+      <div class="player-stage">
+        <div class="player-frame" id="player-frame">
+          <div id="player-container"></div>
+          <div class="player-empty" id="player-empty">
+            <div style="font-size:32px;">🎬</div>
+            <div style="font-weight:600;">No video loaded</div>
+            <div style="font-size:12.5px; max-width:260px;">Start or join a watch party, then load a video file or stream URL to watch together.</div>
+            <label class="btn-primary" style="width:auto; padding:9px 16px;">
+              Choose a file
+              <input type="file" id="local-file-input" accept="video/*" style="display:none;" />
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div class="video-meta">
+        <div class="video-meta-left">
+          <div class="video-title" id="video-title">—</div>
+          <div class="video-sub" id="video-sub">0:00 watched</div>
+        </div>
+      </div>
+    </main>
+
+    <!-- RIGHT: CHAT PANEL -->
+    <aside class="chat-panel glass" id="chat-panel">
+      <div class="chat-swipe-handle" id="chat-swipe-handle"></div>
+      <div class="chat-tabs">
+        <button class="active" data-tab="party" id="tab-party">Party Chat</button>
+        <button data-tab="dm" id="tab-dm">Direct Messages</button>
+        <button class="chat-pin-toggle" id="chat-pin-toggle" title="Pin / float chat">📌</button>
+      </div>
+      <div class="chat-messages" id="chat-messages">
+        <div class="chat-empty" id="chat-empty">No messages yet. Say hi 👋</div>
+      </div>
+      <div class="reply-preview hidden" id="reply-preview">
+        <span id="reply-preview-text"></span>
+        <button id="reply-cancel">✕</button>
+      </div>
+      <div class="gif-panel glass hidden" id="gif-panel">
+        <input type="text" id="gif-url-input" placeholder="Paste a GIF URL and press Enter" />
+        <div class="hint">Tip: paste any direct .gif/.webp link (e.g. from Giphy/Tenor's "copy link" option). Wire a real GIF-search API here if you have a key.</div>
+      </div>
+      <div class="emoji-panel glass hidden" id="emoji-panel">
+        <div class="emoji-grid" id="emoji-grid"></div>
+      </div>
+      <div class="chat-compose">
+        <div class="compose-row">
+          <button class="compose-icon-btn" id="emoji-btn" title="Emoji">🙂</button>
+          <button class="compose-icon-btn" id="gif-btn" title="GIF">GIF</button>
+          <textarea id="chat-input" rows="1" placeholder="Message…"></textarea>
+          <button class="send-btn" id="chat-send-btn" disabled>➤</button>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <!-- FLOATING SCREENSHARE PREVIEW -->
+  <div class="ss-preview glass hidden" id="ss-preview">
+    <div class="ss-preview-head" id="ss-preview-head">
+      <span class="live-tag" id="ss-preview-label">Screen share</span>
+      <div class="ss-preview-actions">
+        <button id="ss-minimize-btn" title="Minimize">▁</button>
+      </div>
+    </div>
+    <video id="ss-preview-video" autoplay playsinline muted></video>
+    <button class="stop-share-btn" id="ss-stop-btn">Stop Sharing</button>
+  </div>
+
+  <!-- MOBILE CHAT FAB -->
+  <button class="chat-fab" id="chat-fab">
+    💬
+    <span class="fab-badge hidden" id="chat-fab-badge">0</span>
+  </button>
+</div>
+
+<!-- =========================================================================
+     MODALS (invite / join party, add friend, settings)
+     ========================================================================= -->
+<div class="modal-overlay hidden" id="party-modal-overlay">
+  <div class="modal glass">
+    <button class="modal-close" data-close="party-modal-overlay">✕</button>
+    <h3>Watch together</h3>
+    <div class="modal-tabs">
+      <button class="active" data-party-tab="host">Host a party</button>
+      <button data-party-tab="join">Join with code</button>
+    </div>
+
+    <div id="party-tab-host">
+      <p style="font-size:12.5px; color:var(--muted); margin-top:0;">Start a session, then share the code or QR below with a friend.</p>
+      <button class="btn-primary" id="start-host-btn">Start Watch Party</button>
+      <div id="host-code-wrap" class="hidden">
+        <div class="peer-code-box" id="host-peer-code">—</div>
+        <div class="qr-wrap"><img id="host-qr" width="180" height="180" alt="QR code for session" /></div>
+      </div>
+    </div>
+
+    <div id="party-tab-join" class="hidden">
+      <p style="font-size:12.5px; color:var(--muted); margin-top:0;">Paste the code your friend sent you.</p>
+      <div class="field">
+        <input type="text" id="join-code-input" placeholder="Session code" style="width:100%; padding:11px; border-radius:9px; border:1px solid var(--border); background:var(--panel-raised); color:var(--text);" />
+      </div>
+      <button class="btn-primary" id="join-party-btn">Join Watch Party</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="add-friend-modal-overlay">
+  <div class="modal glass">
+    <button class="modal-close" data-close="add-friend-modal-overlay">✕</button>
+    <h3>Add a friend</h3>
+    <div class="field">
+      <label for="add-friend-input">Username</label>
+      <input type="text" id="add-friend-input" placeholder="Their exact username" style="width:100%; padding:11px; border-radius:9px; border:1px solid var(--border); background:var(--panel-raised); color:var(--text);" />
+    </div>
+    <div id="add-friend-error" class="auth-error"></div>
+    <button class="btn-primary" id="send-friend-request-btn">Send Friend Request</button>
+  </div>
+</div>
+
+<div class="modal-overlay hidden" id="settings-modal-overlay">
+  <div class="modal glass">
+    <button class="modal-close" data-close="settings-modal-overlay">✕</button>
+    <h3>Settings</h3>
+    <div class="settings-row">
+      <span>Theme</span>
+      <span style="color:var(--muted); font-size:12px;">Dark (only theme available)</span>
+    </div>
+    <div class="settings-row">
+      <span>Playback volume</span>
+      <input type="range" id="volume-slider" min="0" max="100" value="100" />
+    </div>
+    <div class="settings-row">
+      <span>Pin chat on desktop</span>
+      <label class="toggle"><input type="checkbox" id="pin-chat-toggle" checked /><span class="track"></span></label>
+    </div>
+    <div class="settings-row">
+      <span>Screenshare quality</span>
+      <select id="quality-select" style="background:var(--panel-raised); color:var(--text); border:1px solid var(--border); border-radius:7px; padding:5px 8px;">
+        <option value="high">High (1080p)</option>
+        <option value="medium" selected>Medium (720p)</option>
+        <option value="low">Low (480p)</option>
+      </select>
+    </div>
+  </div>
+</div>
+
+<div id="toast-container"></div>
+
+<!-- =========================================================================
+     SCRIPT LOADING ORDER
+     -------------------------------------------------------------------------
+     1. PeerJS   — required by sync.js (window.Peer) for the P2P transport.
+     2. hls.js   — required by player.js (window.Hls) for non-Safari HLS.
+        (video.js and qrcode.js from the original spec are intentionally
+        NOT loaded: player.js is a from-scratch player that never touches
+        video.js, and sync.js already generates its QR via a hosted image
+        endpoint rather than a client-side qrcode.js library. Loading
+        either would just be unused weight — see the note at the top of
+        app.js for the full reasoning.)
+     3. The four vanilla UMD/IIFE modules — order doesn't matter between
+        themselves since none of them reference each other's globals.
+     4. auth.js — an ES module (uses import/export + Firebase's CDN
+        modules), so it's loaded with type="module". app.js is also a
+        module so it can `import { AuthModule } from './auth.js'`.
+        Module scripts always execute after classic scripts that precede
+        them in the document, so window.TVPlayer / SyncModule / ChatModule
+        / ScreenShareModule are guaranteed to exist by the time app.js runs.
+     ========================================================================= -->
+<script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/hls.js@1.5.15/dist/hls.min.js"></script>
+<script src="player.js"></script>
+<script src="sync.js"></script>
+<script src="chat.js"></script>
+<script src="screenshare.js"></script>
+<!-- >>> REQUIRED: point this at your deployed backend from /watchparty-server
+     (e.g. Render). See that folder's README for deploy steps. <<< -->
+<script>window.WP_BACKEND_URL = "https://github.com/peoplescr/meh";</script>
+<script type="module" src="app.js"></script>
+</body>
+</html>
