@@ -39,14 +39,24 @@ function authHeaders() {
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
-async function apiFetch(path, options = {}) {
-  const res = await fetch(`${API_BASE}${path}`, {
-    ...options,
-    headers: { "Content-Type": "application/json", ...authHeaders(), ...(options.headers || {}) },
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(data.error || "Request failed.");
-  return data;
+async function apiFetch(path, options = {}, retries = 3) {
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        ...options,
+        headers: { "Content-Type": "application/json", ...authHeaders(), ...(options.headers || {}) },
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || "Request failed.");
+      return data;
+    } catch (err) {
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, 3000));
+      } else {
+        throw new Error(err.message || "Server is waking up, please try again in a moment.");
+      }
+    }
+  }
 }
 
 function connectSocket(token) {
@@ -67,6 +77,10 @@ async function loadCurrentUser() {
   currentUser = profile;
   return profile;
 }
+
+// Wake up the backend server immediately on page load (Render free tier sleeps
+// after ~15 min of inactivity and takes up to 10s to start responding).
+fetch(`${API_BASE}/health`).catch(() => {});
 
 // Auto-login on page load if a session token is already stored.
 (async function restoreSession() {
